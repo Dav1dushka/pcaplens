@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .apps import METHODS, ClientHello, Dns, HttpRequest, ftp_command, parse_client_hello, parse_dns, parse_http_request
 from .capture import CaptureInfo, read_capture
-from .decode import Packet, decode
+from .decode import FIN, RST, Packet, decode
 
 
 @dataclass
@@ -148,6 +148,11 @@ def _tcp(a: Analysis, p: Packet, ftp_user: dict, streams: dict, syn_seq: dict) -
         a.syn_acks.add((p.src, p.sport, p.dst))
         syn_seq[key] = p.seq
     data = p.payload
+    if p.flags & (FIN | RST):
+        # The connection is closing: whatever was not parsed by now never will be. Free the state,
+        # so a long capture with millions of connections does not keep them all in memory.
+        streams.pop(key, None)
+        syn_seq.pop(key, None)
     if not data:
         return
     if 53 in (p.sport, p.dport) and len(data) > 2:

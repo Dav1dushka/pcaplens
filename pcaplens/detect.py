@@ -178,15 +178,26 @@ def nxdomain_bursts(a: Analysis) -> list[Finding]:
             failures[dst].append((ts, msg.questions[0][0]))
     out = []
     for client, items in failures.items():
+        # Sliding 60-second window with a count per name: O(n) instead of rebuilding the window
+        # for every answer, which matters when an infected host fails thousands of lookups.
         items.sort()
-        best: list[tuple[float, str]] = []
+        in_window: Counter = Counter()
+        best_size, best_range = 0, (0, 0)
         start = 0
-        for end in range(len(items)):
-            while items[end][0] - items[start][0] > 60:
+        for end, (t_end, name) in enumerate(items):
+            in_window[name] += 1
+            while t_end - items[start][0] > 60:
+                old = items[start][1]
+                in_window[old] -= 1
+                if not in_window[old]:
+                    del in_window[old]
                 start += 1
-            window = {n: t for t, n in items[start:end + 1]}
-            if len(window) > len(best):
-                best = sorted((t, n) for n, t in window.items())
+            if len(in_window) > best_size:
+                best_size, best_range = len(in_window), (start, end + 1)
+        first_seen: dict[str, float] = {}
+        for t, n in items[best_range[0]:best_range[1]]:
+            first_seen.setdefault(n, t)
+        best = sorted((t, n) for n, t in first_seen.items())
         if len(best) >= NXDOMAIN_BURST:
             out.append(Finding(
                 "medium", "Burst of failed DNS lookups",
