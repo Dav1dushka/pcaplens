@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pcaplens"
+dynamic = ["version"]
+description = "Find attacks in packet captures: pure-Python pcap/pcapng parser, protocol decoders and detectors"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Davyd Velychko" }]
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+pcaplens = "pcaplens.__main__:run"
+
+[tool.setuptools]
+packages = ["pcaplens"]
+
+[tool.setuptools.dynamic]
+version = { attr = "pcaplens.__version__" }
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"pcaplens/report.py" = ["E501"]   # HTML and CSS templates read better unwrapped
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
