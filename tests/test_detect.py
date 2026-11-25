@@ -171,3 +171,24 @@ def test_uploads_need_volume_and_imbalance(tmp_path):
     assert [f.title for f in run(tmp_path, session(800, 10))[1]] == ["Large upload to 198.51.100.200"]
     assert run(tmp_path, session(800, 400))[1] == []     # a lot both ways: a sync or a video call
     assert run(tmp_path, session(300, 0))[1] == []       # too little to matter
+
+
+def test_nxdomain_burst_window_and_speed():
+    import time
+
+    from pcaplens.analyze import Analysis
+    from pcaplens.apps import Dns
+    from pcaplens.capture import CaptureInfo
+    from pcaplens.detect import nxdomain_bursts
+
+    def failures(times):
+        a = Analysis("x", CaptureInfo())
+        a.dns = [(t, "10.0.0.1", "10.0.0.9", Dns(1, True, "NXDOMAIN", [(f"n{i}.example", "A")]))
+                 for i, t in enumerate(times)]
+        return a
+    assert nxdomain_bursts(failures([i * 7.0 for i in range(10)])) == []        # 10 names spread over 63 s
+    assert len(nxdomain_bursts(failures([i * 6.0 for i in range(10)]))) == 1    # 10 names within 54 s
+    many = failures([i * 0.01 for i in range(30000)])                            # a busy DGA
+    start = time.perf_counter()
+    assert len(nxdomain_bursts(many)) == 1
+    assert time.perf_counter() - start < 5
