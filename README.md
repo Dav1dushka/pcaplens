@@ -91,13 +91,13 @@ Besides findings, the report lists hosts and their peers, TLS server names with 
 
 ## Performance
 
-About 120,000 packets per second on a 2-vCPU cloud VM (Python 3.13): a 100,000-packet, 109 MB capture is analysed in under a second. Address formatting was the hot spot; `socket.inet_ntop` turned out several times faster than the `ipaddress` module for it.
+About 120,000 packets per second on a 2-vCPU cloud VM (Python 3.13): a 100,000-packet, 109 MB capture is analysed in under a second, with a peak of about 8 MB of Python memory. The file is memory-mapped, only what the detectors need is kept, and TCP state is released when a connection closes. Address formatting was the hot spot; `socket.inet_ntop` turned out several times faster than the `ipaddress` module for it.
 
 ## Tests
 
 ```bash
 pip install pytest
-pytest -q     # 49 tests
+pytest -q     # 50 tests
 ```
 
 - **Formats**: both byte orders, micro- and nanosecond pcap, pcapng with a nanosecond clock, truncated and corrupt files, five link types, VLAN tags.
@@ -105,9 +105,14 @@ pytest -q     # 49 tests
 - **Reassembly**: an HTTP request split in three segments, delivered out of order and with a retransmission, must still reveal its credentials; a ClientHello split in two must still give its SNI; a capture that starts mid-connection must not be guessed at.
 - **Detectors**: the demo capture must produce exactly its 11 planted findings, normal traffic from five different seeds must produce **none**, and the thresholds are tested on both sides (14 ports: quiet, 15: scan; regular vs. human timing).
 - **Safety**: a capture with `<script>` in the TLS server name and HTTP host must produce a page without any live markup; the planted passwords must not appear in the text, JSON or HTML output.
+- **Scale**: 30,000 failed DNS lookups must be analysed in well under a second (the sliding window is linear; the first version was quadratic).
 - **Fuzzing**: 150 randomly corrupted copies of the demo capture must either be analysed or rejected with a clear error, never crash.
 
 The capture files in the tests are built byte by byte by `synth.py` (with correct IP and TCP checksums), because no third-party capture library is used. Checking pcaplens against real captures, for example [Wireshark's sample captures](https://wiki.wireshark.org/SampleCaptures), is the next step.
+
+## pcaplens and the real tools
+
+For production monitoring use [Zeek](https://zeek.org/) (protocol logs), [Suricata](https://suricata.io/) (signatures) and Wireshark (manual analysis). pcaplens is a compact, readable implementation of the same ideas: every layer, from the file format to the HTML, fits in about 1,700 lines that can be read in an evening, and each detector states its evidence and thresholds instead of a bare alert.
 
 ## Limits
 
@@ -171,13 +176,13 @@ Python 3.10+, только стандартная библиотека. Свой
 
 ## Производительность
 
-Около 120 000 пакетов в секунду на облачной машине с 2 vCPU (Python 3.13): захват на 100 000 пакетов и 109 МБ разбирается меньше чем за секунду. Узким местом было форматирование адресов; `socket.inet_ntop` оказался в несколько раз быстрее модуля `ipaddress`.
+Около 120 000 пакетов в секунду на облачной машине с 2 vCPU (Python 3.13): захват на 100 000 пакетов и 109 МБ разбирается меньше чем за секунду, а пиковое потребление памяти Python — около 8 МБ. Файл отображается в память, хранится только то, что нужно детекторам, а состояние TCP освобождается при закрытии соединения. Узким местом было форматирование адресов; `socket.inet_ntop` оказался в несколько раз быстрее модуля `ipaddress`.
 
 ## Тесты
 
 ```bash
 pip install pytest
-pytest -q     # 49 тестов
+pytest -q     # 50 тестов
 ```
 
 - **Форматы**: оба порядка байтов, pcap с микро- и наносекундами, pcapng с наносекундными часами, обрезанные и битые файлы, пять типов канального уровня, VLAN-теги.
@@ -185,9 +190,14 @@ pytest -q     # 49 тестов
 - **Сборка TCP**: HTTP-запрос, разбитый на три сегмента, пришедшие не по порядку и с повтором, всё равно должен выдать пароль; ClientHello из двух сегментов — дать SNI; захват, начатый посреди соединения, не должен угадываться.
 - **Детекторы**: демо-захват должен дать ровно свои 11 заложенных находок, обычный трафик с пяти разных seed — **ни одной**, а пороги проверены с обеих сторон (14 портов — тишина, 15 — сканирование; регулярные и «человеческие» интервалы).
 - **Безопасность**: захват с `<script>` в имени TLS-сервера и HTTP Host должен дать страницу без живой разметки; заложенные пароли не должны появиться ни в текстовом, ни в JSON-, ни в HTML-выводе.
+- **Масштаб**: 30 000 неудачных DNS-запросов должны разбираться гораздо быстрее секунды (скользящее окно линейное; первая версия была квадратичной).
 - **Фаззинг**: 150 случайно испорченных копий демо-захвата должны либо разобраться, либо быть отвергнуты с понятной ошибкой — но никогда не уронить программу.
 
 Файлы захвата в тестах собираются побайтно в `synth.py` (с правильными контрольными суммами IP и TCP), потому что сторонние библиотеки для работы с захватами не используются. Следующий шаг — проверить pcaplens на реальных захватах, например на [примерах Wireshark](https://wiki.wireshark.org/SampleCaptures).
+
+## pcaplens и настоящие инструменты
+
+Для мониторинга в продакшене есть [Zeek](https://zeek.org/) (журналы протоколов), [Suricata](https://suricata.io/) (сигнатуры) и Wireshark (ручной анализ). pcaplens — компактная и читаемая реализация тех же идей: все уровни, от формата файла до HTML, умещаются примерно в 1700 строк, которые можно прочитать за вечер, а каждый детектор показывает свои доказательства и пороги, а не голую тревогу.
 
 ## Ограничения
 
